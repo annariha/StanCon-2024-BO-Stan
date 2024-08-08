@@ -1,0 +1,147 @@
+---
+title: "Bayesian optimisation using Stan"
+author: 
+  - name: Anna Elisabeth Riha
+    affiliations:
+      - name: Aalto University
+  - name: Adam Howes
+    affiliations:
+      - name: Independent
+  # - name: Aki Vehtari
+  #   affiliations:
+  #     - name: Aalto University
+  - name: Seth Flaxman
+    affiliations:
+      - name: University of Oxford
+  - name: Elizaveta Semenova
+    affiliations:
+      - name: Imperial College London
+date: 09/13/2024
+date-format: long
+format: 
+  beamer:
+    navigation: horizontal
+    aspectratio: 169
+    theme: metropolis
+    header-includes: |
+        \newcommand{\theHtable}{\thetable} % fix for this issue https://github.com/quarto-dev/quarto-cli/issues/10019
+        \setbeamercolor{frametitle}{bg=white,fg=black}
+        \setbeamercolor{sectiontitle}{bg=white,fg=black}
+        \usepackage{cmbright} % european computer modern bright font
+        \usepackage[T1]{fontenc} % european computer modern bright font
+        \usepackage[utf8]{inputenc}
+        \usepackage[labelformat=empty]{caption}
+        \usepackage[export]{adjustbox}
+        \titlegraphic{
+          \vspace{5.5cm}
+          \begin{figure}
+            \centering 
+            \includegraphics[width=0.25\paperwidth, valign=c]{images/Imperial_logo.png}
+            \includegraphics[width=0.27\paperwidth, valign=c]{images/aaltologo.pdf}
+            \includegraphics[width=0.25\paperwidth, valign=c]{images/FCAI_logo_purple.png}
+          \end{figure}
+        }
+    bibliography: references.bib
+    biblio-style: plain
+    urlcolor: blue
+    mathspec: true
+---
+
+## Bayesian optimisation using Stan
+
+:::: {.columns}
+
+::: {.column width="48%"}
+
+(maybe include a nice illustration of BO here)
+
+:::
+
+::: {.column width="50%"}
+
+In this tutorial, we  
+
+- ...
+- ...
+- ...
+:::
+
+::::
+
+## Where to sample next to find global minimum? 
+<!-- Ice-breaker: we show you function evaluation, tell us where to sample next to find global minimum 
+-->
+
+## Learning outcomes for today's tutorial
+
+After this session, you will be able to 
+
+- ...
+- ...
+- ...
+
+## Schedule for today's tutorial
+
+| Time   | Activity                              |
+|--------|---------------------------------------|
+| 5 min  | Warmup                                |
+| 15 min | Introduction to Bayesian optimisation |
+| 20 min | Surrogates                            |
+| 20 min | Acquisition functions                 |
+| 10 min | Break                                 |
+| 15 min | Computational tricks                  |
+| 15 min | Cost- and propensity-aware BO         |
+| 15 min | Hands-on summary                      |
+
+# What is Bayesian optimisation? 
+
+## The goal of BO and its components
+
+## The BO loop 
+
+## Let's take a break! (10 min)
+
+Some suggestions for recharging during breaks :)  
+
+- move your body
+- open a window or go outside 
+- drink some water 
+- try to avoid checking e-mails, messengers, or social media
+
+# A primer on XYZ
+
+## XYZ 
+
+$$
+p(\theta \mid y) \propto p(\theta) p(y \mid \theta)
+$$
+
+## XYZ (ctd.)
+
+```{r}
+head(mtcars)
+```
+
+## Summary
+
+What we learnt today:
+
+::: {.incremental}
+- BO 
+- BO 
+- BO 
+::: 
+
+# More resources
+
+## Reading materials
+
+- a paper on ...: 
+- a paper on ...: 
+
+## Case studies
+
+- a case study on ...: [add url]()
+- a case study on ...: [add url]()
+
+## References
