@@ -83,13 +83,14 @@ After this session, you will be able to
 
 ## Schedule for today's tutorial
 
-| Time   | Activity                              |
-|--------|---------------------------------------|
-| 5 min  | Warmup                                |
-| 20 min | Introduction to Bayesian optimisation |
-| 20 min | Surrogates                            |
-| 10 min | Acquisition functions                 |
-| 10 min | Break                                 |
+| Time   | Activity                                 |
+|--------|------------------------------------------|
+| 5 min  | Warmup                                   |
+| 10 min | What does Bayesian optimisation solve?   |
+| 10 min | Building blocks of Bayesian optimisation |
+| 20 min | Surrogates                             |
+| 10 min | Acquisition functions                  |
+| 10 min | Break                                  |
 | 5 min  | Computational tricks                  |
 | 10 min | Cost- and propensity-aware BO         |
 | 20 min | Hands-on practice                      |
@@ -232,15 +233,116 @@ So, how can previous information be used?
 
 This is exactly how Bayesian optimisation works.
 
-# The building blocks of Bayesian optimisation
+# Buildling blocks of Bayesian optimisation
+
+## What is bayesian optimisation?
+
+So, what is Bayesian optimisation exactly?
+
+## What is bayesian optimisation?
+
+::: {.incremental}
+- **Bayesian optimisation** (BO) ([@kushner1964new, @mockus-1978]) is a statistical / machine learning technique for addressing the global optimisation task by treating the objective function $f(.)$ as a *random variable*.
+
+- It enables the optimisation of "black-box" functions. 
+
+- It is a *sequential*, *model-based* optimisation algorithm which learns from all available observations to make better informed choices about the next point to query.
+::: 
+
+## BO components: surrogates
+
+We need a model for the objectve "black-box" function. Where to get it?
+
+## BO components: surrogates
+
+::: {.incremental}
+- Since $f$ is black-box, there is uncertainty about it its values:
+  - where it has not been directly evaluated,
+  - when $f$ is noisy, then even at evaluated points as well. 
+::: 
+
+## BO components: surrogates
+
+A perfect case for Bayesian inference and Stan to do it for us!
+
+## BO components: surrogates
+
+::: {.incremental}
+- We can build an explicit probabilistic model of $f$, known as a **surrogate** (or **emulator**) $g_\theta(x)$.
+- The emulator provides a *predictive distribution* for $f$ evaluated at new inputs. 
+- When data $(x_i,y_i), i=1, ..., t$ is observed then the model can be sequentially updated and refined using the Bayes' rule.
+::: 
+
+## BO components: surrogates
+
+The surrogate $g_\theta(x)$ allows to replace the task of global optimisation of the objective function $f(.)$ with the task of global optimisation of the surrogate $g_\theta(.)$:
+
+$$
+\text{arg min}_{x \in \mathcal{X}} f(x) \approx \text{arg min}_{x \in \mathcal{X}} g_\theta(x).
+$$
+
+## BO components: surrogates
+
+Requirements to the surrogate: 
+
+- It should behave similarly to the objective function $f$, 
+
+- It should be cheaper to evaluate at a point $x$ than the target function $f(x)$, and allow to quantify uncertainty of how well $g_\theta(x)$ approximates $f(x)$
+
+## BO components: surrogates
+
+Based on noisy observations
+$$y_i = f(x_i) + \epsilon_i$$ 
+and collected are observation pairs $(x_i, y_i)$ we fit the surrogate to the data
+
+$$g_\theta(x_i) \approx y_i.$$
+
+
+## Acquisition functions
+
+We have obtained a predictive distribution using $g_\theta(x)$. Now what?
+
+## Acquisition functions
+
+At every iteration, an **acquisition function** $a(x)$ is used to decide which point $x_{t+1}$ to query next as $x_{t+1}$ is chosen as the optimum of $a(x)$:
+
+$$x_{t+1}= \text{arg min}_{x \in \mathcal{X}} a(x)$$.
+
+## BO components: summary
+
+In summary, BO is a sequential *model-based* optimisation algorithm which learns from all available observations to make better informed choices about the next point to query, and uses a probabilistic surrogate model representing the objective function for it.
+
+
+## The BO loop 
+
+::: {#bo-loop .callout-note icon=false}
+### The Bayesian optimisation procedure
+
+- *Initialization*: select initial points $(x_0, y_0)$ to evaluate the objective function
+- *Iterative Loop*:
+  - update the **surrogate model** by fitting $g_\theta(x_i) \approx y_i, i=0,...,t$.
+  - evaluate **acquisition function** $a(x)$
+  - select the next point as the optimnum of the acquisition function to  $x_{t+1}= \text{arg min}_{x \in \mathcal{X}} a(x)$.
+  - evaluate the objective function: $y_{t+1} = f(x_{t+1}) + \epsilon_i$
+  - Stopping Criterion: check if the stopping criterion is met (e.g., maximum number of iterations reached, convergence achieved, or budget exhausted).
+- *Termination*: Return the best observed point or the point that minimises the surrogate model's prediction of the objective function.
+
+:::
 
 ## Bayesian optimisation use cases
 
-## Bayesian optimisation use cases
+- Machine learning
+- Drug development
+- Chemical discovery
+- Climate models
+- Robotic control
 
 ## Connection to active learning
 
-## The BO loop 
+- Active learning, on the other hand, focuses on selecting the most informative data points in order to learn the whole function.
+
+- Put simply, BO is active learning for global optimisation.
+
 
 ## Let's take a break! (10 min)
 
@@ -253,15 +355,13 @@ Some suggestions for recharging during breaks :)
 
 # Gaussian Processes as surrogates
 
-# A primer on XYZ
-
 ## XYZ 
 
 $$
 p(\theta \mid y) \propto p(\theta) p(y \mid \theta)
 $$
 
-## XYZ (ctd.)
+## XYZ 
 
 ```{r}
 head(mtcars)
@@ -272,9 +372,9 @@ head(mtcars)
 What we learnt today:
 
 ::: {.incremental}
-- BO 
-- BO 
-- BO 
+- What is BO 
+- BO components: surrogates and acquisition functions
+- Cost- and response propensity-aware BO
 ::: 
 
 # More resources
@@ -289,10 +389,9 @@ What we learnt today:
 - a case study on ...: [add url]()
 - a case study on ...: [add url]()
 
-## References
-
 
 ## Stay tuned
 
 We will soon release a write-up based on the materials of this workshop, with more details.
 
+## References
