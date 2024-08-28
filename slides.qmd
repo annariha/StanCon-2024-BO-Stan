@@ -47,55 +47,198 @@ format:
     mathspec: true
 ---
 
+
 ## Bayesian optimisation using Stan
 
 :::: {.columns}
 
 ::: {.column width="48%"}
 
-(maybe include a nice illustration of BO here)
+<!--![](images/bo_demo.png){width=100%}-->
+(a nice BO image here)
 
 :::
 
 ::: {.column width="50%"}
 
-In this tutorial, we  
+In this tutorial, we will  
 
-- ...
-- ...
-- ...
+- provide an overview of Bayesian optimisation (BO),
+- demonstrate how Stan can be used within the BO procedure, 
+- demonstrate variable query cost and non-response propensity within BO.
+
 :::
 
 ::::
 
-## Where to sample next to find global minimum? 
-<!-- Ice-breaker: we show you function evaluation, tell us where to sample next to find global minimum 
--->
+
 
 ## Learning outcomes for today's tutorial
 
 After this session, you will be able to 
 
-- ...
-- ...
-- ...
+- formulate the main goal and components of BO,
+- implement Gaussian process surrogates,
+- use several acquisution functions within BO.
 
 ## Schedule for today's tutorial
 
 | Time   | Activity                              |
 |--------|---------------------------------------|
 | 5 min  | Warmup                                |
-| 15 min | Introduction to Bayesian optimisation |
+| 20 min | Introduction to Bayesian optimisation |
 | 20 min | Surrogates                            |
-| 20 min | Acquisition functions                 |
+| 10 min | Acquisition functions                 |
 | 10 min | Break                                 |
-| 15 min | Computational tricks                  |
-| 15 min | Cost- and propensity-aware BO         |
-| 15 min | Hands-on summary                      |
+| 5 min  | Computational tricks                  |
+| 10 min | Cost- and propensity-aware BO         |
+| 20 min | Hands-on practice                      |
 
-# What is Bayesian optimisation? 
+# Warmup
 
-## The goal of BO and its components
+## Where to sample next to find global minimum? 
+<!-- Ice-breaker: we show you function evaluation, tell us where to sample next to find global minimum 
+-->
+TODO
+
+# What does Bayesian optimisation solve? 
+
+## Problem definition: global optimisation
+
+The goal of **global optimisation** of a real-valued function $f: \mathcal{X} \to \mathbb{R}$ is to find a *minimiser* $x^*$ (there may be more than one) in the search space $\mathcal{X}$, such that:
+
+$$
+x^* = \text{arg min}_{x \in \mathcal{X}} f(x).
+$$
+
+## Problem definition: global optimisation
+
+Today we focus on finding a minimum, but finding a maximum can be approached in the same way since 
+$$\text{max}_{x \in \mathcal{X}} f(x) = - \text{min}_{x \in \mathcal{X}}f(x).$$
+
+## Problem definition: global optimisation
+
+The function $f$ to be optimised is referred to as the **objective function**. 
+
+In contrast to *local optimisation*, global optimisation requires that 
+$$f(x^*) \leq f(x)$$ 
+for **all** $x \in \mathcal{X}$ rather than only in some neighbourhood about $x^*$. Throughout this workshop, we assume that the search space $\mathcal{X}$ is a subset of $\mathbb{R}^d$ where $d \in \mathbb{N}$:
+$$\mathcal{X} \subset  \mathbb{R}^d$$
+
+## Group discussion
+
+Given a function $f: \mathcal{X} \to \mathbb{R},$ how would you approach the search of its minimum?
+
+## Problem definition: global optimisation
+
+In practice, the objective function $f$ may possess the following challenging properties:
+
+1. *Non-linear, non-convex*,
+
+## Problem definition: global optimisation
+
+In practice, the objective function $f$ may possess the following challenging properties:
+
+2. *Black-box:* A function is called **black-box** if it can only be viewed in terms of its inputs and outputs. If $f$ is black-box then it does not have an analytic form or derivatives, such as the gradient $\nabla f$ or Hessian $\mathbf{H}$.
+
+## Problem definition: global optimisation
+
+> "Any sufficiently complex system acts as a black-box when it becomes easier to experiment with than to understand."
+ 
+::: {.flushright data-latex=""}
+Golovin et al, "Google Vizier" (2017)
+:::
+
+## Problem definition: global optimisation
+
+In practice, the objective function $f$ may possess the following challenging properties:
+
+3. *Expensive to evaluate*: The sampling procedure is computationally, economically or otherwise prohibitively expensive. 
+
+## Problem definition: global optimisation
+
+In practice, the objective function $f$ may possess the following challenging properties:
+
+4. *Noisy*: When $f$ is evaluated at $x$, the value returned $y$ is contaminated by noise $\epsilon$, typically assumed to be Gaussian with zero mean and variance $\sigma^2$ such that 
+$$y = f(x) + \epsilon$$.
+
+## Problem definition: global optimisation
+
+- Perhaps, the global optimisation problem can be solved using sampling!
+
+## Sample designs
+
+- How should points be queried to efficiently learn about $x^*$?
+
+## Sample designs
+
+- How should points be queried to efficiently learn about $x^*$?
+
+- Let's focus on finding a ``good" solution or converging to a minimiser $x^*$ in few evaluations, rather than in making theoretical guarantees about optimality.
+
+## Sample designs
+
+The two relatively naive strategies:
+
+- *grid-search*, 
+
+- *random-search*.
+
+## Sample designs: grid search
+
+*Grid-search*:
+
+- **How**: Samples are taken spaced evenly throughout the domain $\mathcal{X}$ at a resolution appropriate to the optimisation budget.
+
+- **Pitfalls**: Although the whole domain is superficially covered, if few function evaluations can be afforded then this coverage is too sparse to reliably locate a minimiser.
+
+## Sample designs: random search
+
+*Random-search*:
+
+- **How**: random-search chooses inputs in the domain $\mathcal{X}$ to evaluate at random.
+
+- **Pitfalls**: complete randomness lends itself to clumps of points and large areas left empty.
+
+## Sample designs: latin-hypercube
+
+*Latin-hypercube*:
+
+a grid with exactly one sample in each column and each row. This avoids the problem of collapsing, from which grid-search suffers. 
+
+## Sample designs: static designs
+
+An issue with the aforementioned strategies: information gained during the search is not used to better inform the next decision.
+
+## Sample designs: sequential decision making
+
+Rather than choose all the points at once it makes sense instead to consider a *sequential decision making* problem where at each stage a point is carefully chosen to be evaluated next. 
+
+## Sample designs: sequential decision making
+
+So, how can previous information be used?
+
+## Sequential decision making: idea
+
+::: {.incremental}
+- Make assumptions about $f$, e.g. that $f$ is smooth.
+- Build a model which mimics behaviour of $f$. A model with uncertainty!
+- Sample in uncertain regions, not near to any previous evaluations, to *explore*.
+- Sample in promising regions, near to previous low evaluations, to *exploit*. 
+::: 
+
+
+## Sequential decision making: idea
+
+This is exactly how Bayesian optimisation works.
+
+# The building blocks of Bayesian optimisation
+
+## Bayesian optimisation use cases
+
+## Bayesian optimisation use cases
+
+## Connection to active learning
 
 ## The BO loop 
 
@@ -107,6 +250,8 @@ Some suggestions for recharging during breaks :)
 - open a window or go outside 
 - drink some water 
 - try to avoid checking e-mails, messengers, or social media
+
+# Gaussian Processes as surrogates
 
 # A primer on XYZ
 
@@ -145,3 +290,9 @@ What we learnt today:
 - a case study on ...: [add url]()
 
 ## References
+
+
+## Stay tuned
+
+We will soon release a write-up based on the materials of this workshop, with more details.
+
