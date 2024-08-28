@@ -87,13 +87,13 @@ After this session, you will be able to
 |--------|------------------------------------------|
 | 5 min  | Warmup                                   |
 | 10 min | What does Bayesian optimisation solve?   |
-| 10 min | Building blocks of Bayesian optimisation |
-| 20 min | Surrogates                             |
-| 10 min | Acquisition functions                  |
-| 10 min | Break                                  |
-| 5 min  | Computational tricks                  |
-| 10 min | Cost- and propensity-aware BO         |
-| 20 min | Hands-on practice                      |
+| 15 min | Building blocks of Bayesian optimisation |
+| 20 min | GPs as Surrogates                        |
+| 10 min | Acquisition functions                    |
+| 10 min | Break                                    |
+| 5 min  | Computational tricks                     |
+| 10 min | Cost- and propensity-aware BO            |
+| 35 min | BO Hands-on                              |
 
 # Warmup
 
@@ -355,39 +355,364 @@ Some suggestions for recharging during breaks :)
 
 # Gaussian Processes as surrogates
 
-## XYZ 
+## Choice of a surrogate
+
+Choice of a surrogate depends on the assumptions that we make about the objective function $f$.
+
+## Choice of a surrogate
+
+There exist some variety of surrogate models:
+
+- support vector machines [@vapnik-svm-1997], 
+- decision trees and random forests [@breiman-2001; @bergstra-algorithms-2011], 
+- Bayesian neural networks [@li-bnn-optim-2024].
+
+## Choice of a surrogate
+
+However, for *continuous functions*, the most canonical choice is Gaussian processes (GPs).
+
+## GPs: multivariate Gaussian distribution
+
+A random vector $x = (x_1,...,x_d)^T \in \mathbb{R}^d$ has multivariate Gaussian distribution with mean vector $m$ and covariance matrix $\Sigma$ if its probability density is given by:
 
 $$
-p(\theta \mid y) \propto p(\theta) p(y \mid \theta)
+f(x) = \frac{1}{(2\pi)^{d/2}{\left | \Sigma  \right |}^{1/2}} \textrm{exp}\left( {-\frac{1}{2}(x-m)^T \Sigma^{-1} (x-m)}\right)
 $$
 
-## XYZ 
+This is denoted by 
+$$x \sim \mathcal{N}(m, \Sigma).$$
+
+## Multivariate Gaussian distribution: two attarctive properties
+
+Consider the partitioning of $x$ into $[x_1, x_2]$ where $x_1 \in \mathbb{R}^p$ and $x_2 \in \mathbb{R}^q$ with $p + q = d$, so that 
+$$
+  x = \begin{bmatrix} x_1 \\ x_2\end{bmatrix} \sim 
+  \mathcal{N}\left(\begin{bmatrix} m_1 \\ m_2\end{bmatrix}, 
+                   \begin{bmatrix} \Sigma_{11} & \Sigma_{12} \\ \Sigma_{21} & \Sigma_{22} \end{bmatrix}\right) 
+$$
+where $m$ and $\Sigma$ are partitioned naturally.
+
+## Multivariate Gaussian distribution: two attarctive properties
+  
+Then the *marginal* distribution of $x_1$ is:
+$$
+    p(x_1) = \mathcal{N}(x_1 \vert m_1, \Sigma_{11})
+$$
+i.e. marginal distribution of any subset of $x$ are a multivariate Gaussian. 
+
+## Multivariate Gaussian distribution: two attarctive properties
+  
+Similarly, the *conditional* distribution of any subset of $x$ conditioned on another subset is a multivariate Gaussian. The distribution of $x_1$ given that $x_2$ is known is given by:
+$$
+    p(x_1 \vert x_2) = 
+    \mathcal{N}(x_1 \vert m_1 + \Sigma_{12}\Sigma_{22}^{-1}(x_2 - m_2),
+                \Sigma_{11} - \Sigma_{12}\Sigma_{22}^{-1}\Sigma_{21}).
+$$
+
+## Gaussian process definition
+    
+A *Gaussian process* is defined to be a collection of random variables, any finite number of which have a joint Gaussian distribution [@rasmussen_gaussian_2005]. The random variables $f(x)$ are indexed by the elements $x$ of some set $\mathcal{X}$. 
+    
+## Gaussian process definition
+
+As we have seen, the multivariate Gaussian distribution is specified entirely by its mean vector $m$ and covariance matrix $\Sigma$. Analogously, a GP is specified entirely by its prior *mean function* $\mu: \mathcal{X} \to \mathbb{R}$ and *covariance function* $k:\mathcal{X}^2 \to \mathbb{R}$, with:
+$$
+  \mu(x) = \mathbb{E}[f(x)]
+$$
+$$
+  k(x, x') = \text{Cov}(f(x), f(x'))
+$$
+This is commonly written as:
+$$
+  f(\mathbf{x}) \sim \mathcal{GP}(\mu(\mathbf{x}), k(\mathbf{x}, \mathbf{x'}))
+$$    
+
+
+## Gaussian process definition
+
+GPs can be used as *priors* and posteriors *over functions*. This makes them a natural tool for sequential Bayesian learning.
+
+
+## Kernel functions
+
+The covariance function $k$ is also regularly called the *kernel* function. It is a positive-definite measure of the expected similarity of two inputs in the output space. 
+
+## Kernel functions
+
+The structure of a GP is primarily determined by the kernel as it specifies the likely properties of functions drawn from the process [@snelson2008flexible]. 
+
+For simplicity, we will assume the mean to be zero. 
+
+## Kernel functions: examples
+
+The *squared exponential* (SE) kernel produces sample functions that are infinitely differentiable, and so can be used to model functions which are very smooth.
+$$
+  k_{\mathrm{SE}}(x, x') = \sigma_f^2\:\mathrm{exp}\left(-\frac{\|x - x'\| ^2}{2l^2}\right)
+$$
+
+## Kernel functions: examples
+  
+A more general *Matérn* family [@matern2013spatial] allows the smoothness to be controlled:
+$$
+  k_\mathrm{M}(x, x') = 
+\frac{\sigma_f^2}{2^{\nu - 1}\Gamma(\varsigma)} \left(\frac{\sqrt{2\varsigma}\|x - x'\|}{l}\right)^\nu
+K_\nu\left(\frac{\sqrt{2\nu}\|x - x'\|}{l}\right)
+$$
+
+## Kernel functions: examples
+
+For $\nu = 3/2$ we get
+$$
+k_\mathrm{M3/2}(x, x') = \left(1 + \frac{\sqrt{3}\lvert x - x' \rvert}{l}\right) \mathrm{exp}\left(-\frac{\sqrt{3}\lvert x - x' \rvert}{l}\right)
+$$
+
+and for $\nu = 5/2$ we get
+$$
+k_\mathrm{M5/2}(x, x') = \left(1 + \frac{\sqrt{5}\lvert x - x' \rvert}{l} + \frac{5\lvert x - x' \rvert^2}{3l^2}\right)\mathrm{exp}\left(-\frac{\sqrt{5}\lvert x - x' \rvert}{l}\right)
+$$
+
+## Kernels and function properties
+
+Let $r = \|x - x'\|$. Some covariance kernels and the types of functions they can model:
+  
+| Name | Definition | Type of functions |
+|----------|----------|----------|
+|   Squared Exponential|   $\alpha \exp\left(-\frac{r^2}{2\ell^2}\right)$ |   Infinitely differentiable functions |
+|   Mat\'ern 1/2|   $\alpha \exp\left(-\frac{r}{\ell} \right)$ |   Continuous but not differentiable |
+|   Mat\'ern 3/2|   $\alpha \left( 1 + \frac{\sqrt{3}r}{\ell} \right) \exp\left(-\frac{\sqrt{3}r}{\ell} \right)$ |  1 time differentiable functions |
+|   Mat\'ern 5/2|   $\alpha \left( 1 + \frac{\sqrt{5}r}{\ell} + \frac{5r^2}{3\ell^2} \right) \exp\left(-\frac{\sqrt{5}r}{\ell} \right)$ |   2 time differentiable functions |
+|   Linear Kernel|   $\sigma_b^2 + \sigma_v^2 (x - c)(x' - c)$ |   Linear functions |
+|   Periodic Kernel|  $\alpha \exp\left( -\frac{2\sin^2(\pi r / p)}{\ell^2} \right)$ |   Periodic functions |
+  
+
+## Sampling from Gaussian process
+
+We want to samples from a zero-mean GP at a finite collection of points 
+$$
+X := [x_1, \ldots , x_n]^T \in \mathcal{X}^n \subseteq \mathbb{R}^{n \times d}.
+$$ 
+The vector of random variables 
+$$
+f := f(X) := [f(x_1), \ldots , f(x_n)]^T
+$$ 
+corresponding to this matrix by definition has a joint multivariate Gaussian distribution.
+
+## Sampling from Gaussian process
+
+The distribution of $f$ is
+$$
+\begin{bmatrix} f(x_1) \\ f(x_2) \\ \vdots \\ f(x_n) \end{bmatrix} \sim \mathcal{N} \left(
+\begin{bmatrix} 0 \\ 0 \\ \vdots \\ 0 \end{bmatrix}, 
+\begin{bmatrix} k(x_1, x_1) & k(x_1, x_2) & \ldots & k(x_1, x_n) \\ 
+				k(x_2, x_1) & k(x_2, x_2) & \ldots & k(x_2, x_n) \\
+				\vdots        & \vdots        & \ddots & \vdots        \\
+				k(x_n, x_1) & k(x_n, x_2) & \ldots & k(x_n, x_n) \\ 
+\end{bmatrix}
+\right)
+$$
+Or, put more succinctly:
+$$
+f \sim \mathcal{N}(0, K)
+$$
+
+
+## Gaussian process regression
+
+Recall that out observations are noisy:
+
+$$y = f(x) + \epsilon.$$
+
+We are interested in the value of the GP $f_* := f(x_*)$ at a new input $x_*.$
+
+The joint distribution of the values $y$ and $f_*$ is:
+$$
+\begin{bmatrix} y \\ f_* \end{bmatrix}
+ \sim \mathcal{N} \left(
+\begin{bmatrix} 0 \\ 0 \end{bmatrix},
+\begin{bmatrix} K + \sigma^2I & k_*^T \\ 
+				k_* & k(x_*,x_*) \\
+\end{bmatrix} \right)
+$$
+
+## Gaussian process regression
+
+This can be conditioned to show that the predictive distribution $p(f_* \vert y)$ is Gaussian with mean and variance given by:
+$$
+\mu(x_*) = k_*^T(K + \sigma^2I)^{-1}y
+$$
+
+$$
+\sigma^2(x_*) = k(x_*,x_*) - k_*^T(K + \sigma^2I)^{-1}k_* 
+$$
+
+# Acquisition functions
+
+## Acquisition functions
+
+- Acquisition functions provide a heuristic measure of the utility of prospective query points. 
+
+- At stage $t$ to determine the next point to query $x_{t}$, the chosen acquisition function $a$ is maximized over the design space
+$$ 
+x_t = \text{argmax}_{ x \in \mathcal{X}} a(x).
+$$
+
+## Acquisition functions: probability of improvement (POI)
+
+Probability of improvement acquisition function (@kushner1964new) under the GP surrogate can be computed analytically as
+
+$$
+a_\text{POI}(x) = \Phi \left(\frac{\hat{y} - \mu(x)}{\sigma(x)}\right) = \Phi (z(x)).
+$$
+
+Here 
+
+- $\hat{y}$ is "the best value found so far", 
+
+- $\Phi(\cdot)$ is the standard normal cumulative distribution function,
+
+- $z(x) = {(\hat{y} - \mu(x))}/{\sigma(x)}$ is the standardization score,
+
+- $\mu(x)$ and $\sigma(x)$ are point-wise predicted mean and standard deviation of $f(x)$. 
+
+
+## Acquisition functions: Expected improvement (EI)
+
+Expected improvement (EI) [@mockus1974bayesian]:
+$$
+a_{\mathrm{EI}}(x) = \sigma(x)[z(x)\Phi(z(x)) + \phi(z(x))].
+$$
+
+Here
+
+- $\Phi(\cdot)$ and $\phi(\cdot)$ are the CDF and the PDF of the standard normal probability density function. 
+
+## Acquisition functions: lower confidence bound (LCB)
+
+Lower confidence bound (LCB; or upper, when considering maximization) (@srinivas2009gaussian):
+$$a_\text{LCB}(x) = \mu(x) - \kappa*\sigma(x)$$
+Here
+
+- $\kappa$ is a user-defined parameter allowing to balance exploration and exploitation.
+
+# Computational tricks
+
+## Tricks for GPs
+
+GPs scale cubically leading to poor scalability. There is a expanding range of techniques available to bypass this problem. For instance, 
+
+- on a multivariate grid, the Kronecker product trick [@saatcci2012scalable],
+
+- Hilbert Space Gaussian Process (HSGP) approximations [@solin2020hilbert, @riutort2023practical],
+
+- approximations using variational techniques.
+
+## Thompson samping 
+
+Thompson sampling [@thompson1933likelihood] selects the next evaluation point by using *one sample* from the posterior distribution of the objective function.
+
+# Query cost and response propensity
+
+## Query cost and response propensity
+
+The default version of BO implicitly assumes
+
+- constant cost of each query,
+
+- a guaranteed response every time a query is made.
+
+## Variable cost
+
+It is important to prioritize searching in areas with lower evaluation costs.
+
+The cost can be included into the acquisition function by dividing the acquisition function by the cost:
+$$
+a_{\text{cost}}(x) = \frac{a(x)}{c(x)}.
+$$
+
+## Response propensity
+
+*Propensity of response* can be accounted for by introducing a corresponding propensity of response function. A propensity-aware acquisition function is then given by combining an acquisition function with a propensity function, denoted $r(x)$. 
+
+## Cost-cooling
+
+The cost-cooled [@lee2020cost] acquisition function is given by 
+$$
+a_{\text{cool}}(x) = \frac{a(x)}{c(x)^{\alpha}}.
+$$
+
+## Combining cost-cooling and propensity of response
+
+$$
+a_{\text{prop,cool}}(x) = a_{\text{cool}}(x) r(x) = \frac{a(x)}{c(x)^{\alpha}} r(x)
+$$
+
+In connection with a propensity of response and given a total budget $\tau$, including the cost of queries allows to directly obtain estimates for the wasted budget due to the expected number of non-responses. 
+
+# Implementation in R and Stan
+
+## Implementation of acquisition functions: probability of improvement
 
 ```{r}
-head(mtcars)
+#| echo: true
+probability_improvement <- function(m, s, y_best) {
+  if (s == 0) return(0)
+  else {
+    poi <- pnorm((y_best - m) / s)
+    # if maximizing: poi <- 1 - poi
+    return(poi)
+  }
+}
 ```
+
+## Implementation of acquisition functions: expected improvement
+
+```{r}
+#| echo: true
+expected_improvement <- function(m, s, y_best) {
+  ei <- rep(NA, length(m))
+  for (i in 1:length(ei)){
+    if (s[i] == 0) {
+      ei[i] <- 0
+      next
+    }
+    gamma <- (y_best - m[i]) / s[i]
+    phi <- pnorm(gamma)
+    ei[i] <- s[i] * (gamma * phi + dnorm(gamma))
+  }
+  return(ei)
+}
+```
+
+## Implementation of acquisition functions: lower confidence bound
+
+```{r}
+#| echo: true  
+gp_lower <- function(m, s, kappa=2){
+  lower_confidence_bound <- m - kappa * s
+  # if maximizing: upper_confidence_bound <- mu + kappa * sigma
+  return(lower_confidence_bound)
+}
+```
+
+## An initial example
+
+For an initial example, assume that the unknown function is in fact the Forrester function [@forrester_engineering_2008]:
+$$
+f(x) = (6  x - 2)^2  \sin(12  x - 4).
+$$
+
+# Outro
 
 ## Summary
 
 What we learnt today:
 
 ::: {.incremental}
-- What is BO 
-- BO components: surrogates and acquisition functions
-- Cost- and response propensity-aware BO
+- What problem is solved by Bayesian optimisation,
+- BO components: surrogates and acquisition functions,
+- Cost- and response propensity-aware BO,
+- Relevant implementation.
 ::: 
-
-# More resources
-
-## Reading materials
-
-- a paper on ...: 
-- a paper on ...: 
-
-## Case studies
-
-- a case study on ...: [add url]()
-- a case study on ...: [add url]()
 
 
 ## Stay tuned
