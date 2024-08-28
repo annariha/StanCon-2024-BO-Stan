@@ -93,14 +93,25 @@ After this session, you will be able to
 | 10 min | Break                                    |
 | 5 min  | Computational tricks                     |
 | 10 min | Cost- and propensity-aware BO            |
-| 35 min | BO Hands-on                              |
+| 30 min | BO Hands-on                              |
+| 5 min  | Outro                                    |
 
 # Warmup
 
 ## Where to sample next to find global minimum? 
 <!-- Ice-breaker: we show you function evaluation, tell us where to sample next to find global minimum 
 -->
-TODO
+
+```{r}
+library(ggplot2)
+observed_evals <- data.frame(x = c(0.2, 0.25, 0.8), y = c(0, -0.2, 5))
+
+ggplot(data = observed_evals, aes(x = x, y = y)) +
+    geom_point() + 
+    ylab("f(x)") +
+    ylim(-5, 5) +
+    theme_bw()
+```
 
 # What does Bayesian optimisation solve? 
 
@@ -700,6 +711,10 @@ For an initial example, assume that the unknown function is in fact the Forreste
 $$
 f(x) = (6  x - 2)^2  \sin(12  x - 4).
 $$
+
+## Implementation
+
+Coding time ...
 
 # Outro
 
