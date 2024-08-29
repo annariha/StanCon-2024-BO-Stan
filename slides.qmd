@@ -734,4 +734,4 @@ What we learnt today:
 
 We will soon release a write-up based on the materials of this workshop, with more details.
 
-## References
+## References {.allowframebreaks}
