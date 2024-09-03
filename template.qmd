@@ -1,0 +1,531 @@
+---
+title: "Bayesian optimisation using Stan @ StanCon 2024"
+---
+
+## Setup
+
+```{r}
+#| message: false
+
+# Use a repository of pre-built package binaries to speed-up installation
+download.file("https://github.com/eddelbuettel/r2u/raw/master/inst/scripts/add_cranapt_jammy.sh", "add_cranapt_jammy.sh")
+Sys.chmod("add_cranapt_jammy.sh", "0755")
+system("./add_cranapt_jammy.sh")
+
+# Install R Packages
+install.packages(c("here", "tidyverse", "ggplot2", "MASS", "khroma", "cmdstanr"),
+                  repos = c("https://stan-dev.r-universe.dev", getOption("repos")))
+```
+
+Now, we can load all the libraries and set a seed: 
+
+```{r}
+#| message: false
+#| warning: false
+
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(MASS)
+library(khroma)
+library(cmdstanr)
+
+set.seed(424242)
+```
+
+In this tutorial, we use the [cmdstanr](https://mc-stan.org/cmdstanr/articles/cmdstanr.html) R interface to CmdStan. 
+Using the `cmdstanr` package, we first check the C++ toolchain: 
+
+```{r}
+check_cmdstan_toolchain()
+```
+
+If this returns `The C++ toolchain required for CmdStan is setup properly!`, then CmdStan can be installed as follows:
+
+```{r}
+install_cmdstan(cores = 2)
+```
+
+More detailed installation instructions for CmdStan can be found in the [CmdStan documentation](https://mc-stan.org/docs/cmdstan-guide/installation.html) and the [Getting started with CmdStanR](https://mc-stan.org/cmdstanr/articles/cmdstanr.html) vignette. 
+
+::: {.callout-warning icon=false}
+## If you run into installation issues 
+If you have a Google account, you can instead work with `template.ipynb` in Google Colab without having to install and set up CmdStan locally. 
+:::
+
+## 1. Icebreaker 
+
+Imagine you only observe three function evaluations of an otherwise unknown function, and you want to find the global minimum of the function.
+
+How would you approach this? 
+
+```{r}
+observed_evals <- data.frame(x = c(0.2, 0.25, 0.95), y = c(-0.64, -0.21, 12.30))
+
+ggplot(data = observed_evals, aes(x = x, y = y)) +
+    geom_point() + 
+    ylab("f(x)") + 
+    ylim(-5, 15) +
+    theme_bw()
+```
+
+## 2. Introduction to Bayesian optimisation 
+
+Luckily, we don't have to continue guessing what points to evaluate next. Bayesian optimisation to the rescue!
+
+The goal of BO is to find the minimum or maximum of an unknown function ("black-box") for which we can only obtain function evaluations at a finite number of points.
+
+There are many applications of BO ranging from hyperparameter discovery to experimental design.
+
+The BO mechanism makes use of a **surrogate model** and an **acquisition function** to efficiently navigate the trade-off between exploration and exploitation. 
+
+## 3. Surrogate models 
+
+One option for a surrogate model is a Gaussian process.  
+
+By definition of a GP, writing $g \sim \mathcal{GP}\left(\mu, K\right)$ with mean function $\mu(.)$ and a covariance or kernel function $K(.,.)$ means that the joint distribution of the function’s value $g(\mathbf{x})$ at a finite number of input points $\mathbf{x} = \{x_1, \cdots, x_n\}$ is a multivariate normal distribution.
+
+Different covariance functions for GPs are available in Stan and are listed in the [Stan function documentation](https://mc-stan.org/docs/functions-reference/matrix_operations.html#gaussian-process-covariance-functions). 
+
+To illustrate how to set up the different components of Bayesian optimisation using a GP with a squared exponential covariance function, assume that we want to find the minimum of the "unknown" function $f(x) = (6  x - 2)^2  \sin(12  x - 4)$ (Forrester function). 
+
+```{r}
+forrester_fun <- function(x) {
+  return((6 * x - 2)^2 * sin(12 * x - 4))
+}
+
+x_grid <- seq(0, 1, length.out = 100)
+
+plot_forrester <- ggplot(data = data.frame(x = x_grid, y = forrester_fun(x_grid)), aes(x = x, y = y)) +
+  geom_line() + 
+  ylab("f(x)") + 
+  theme_bw()
+
+plot_forrester
+```
+
+We can start with the following GP surrogate for $f(x)$:  
+
+$$
+\begin{aligned}
+y &\sim \text{N}(g(x), \sigma) \ \text{with} \ \sigma \sim \text{N}^+(0,1),\\
+\\
+g(x) &\sim GP(\mu, K),  \text{with} \ \mu \sim \text{N}(0,1),\\ 
+K_{i,j} &= k (x_i, x_j) = \alpha^2  \exp \left(- \frac{(x_i - x_j)^2}{\rho^2} \right),\\
+\\
+\alpha &\sim \text{N}^+(0,1),\\ 
+\rho &\sim \text{N}(0.3,0.1).
+\end{aligned}
+$$
+In Stan, we can implement the model like this, using the covariance function `gp_exp_quad_cov`: 
+
+```{r}
+stan_1_gp <- "
+data {
+  int<lower=1> N_obs;
+  array[N_obs] real x_obs;
+  vector[N_obs] y_obs;
+  int<lower=1> N_pred;
+  array[N_pred] real x_pred;
+}
+
+transformed data {
+  int<lower=1> N = N_obs + N_pred;
+  array[N] real x;
+  for (n_obs in 1:N_obs)   x[n_obs] = x_obs[n_obs];
+  for (n_pred in 1:N_pred) x[N_obs + n_pred] = x_pred[n_pred];
+}
+
+parameters {
+  real<lower=0> rho;
+  real<lower=0> alpha;
+  real<lower=0> sigma;
+  real mu;
+  vector[N] eta;
+}
+
+transformed parameters{
+  vector[N] g;
+  { 
+    matrix[N, N] L;
+    matrix[N, N] K;
+    K = gp_exp_quad_cov(x, alpha, rho) + diag_matrix(rep_vector(1e-10, N));
+    L = cholesky_decompose(K);
+    g = mu + L * eta;
+  }
+}
+
+model {
+  rho   ~ normal(0.3,0.1);
+  alpha ~ std_normal();
+  sigma ~ std_normal();
+  mu    ~ std_normal();
+  eta   ~ std_normal();
+  y_obs ~ normal(g[1:N_obs], sigma);
+}
+
+generated quantities {
+  vector[N_pred] y_pred;
+  for (n_pred in 1:N_pred){
+    y_pred[n_pred] = normal_rng(g[N_obs + n_pred], sigma);
+  }
+}
+
+"
+```
+
+Note that this one implementation to get started, and there are other (more efficient) ways to set up and reparameterise GPs in Stan, see the comments by Andrew Johnson and Aki Vehtari in [Stan discourse](https://discourse.mc-stan.org/t/help-reparameterize-gp-model-to-remove-divergent-transitions/26425/4?u=andrjohns), Aki's case study on GPs [here](https://avehtari.github.io/casestudies/Motorcycle/motorcycle_gpcourse.html), and the computational tricks mentioned in the tutorial slides. 
+
+```{r}
+# Save Stan code in Stan file 
+file_1_gp <- cmdstanr::write_stan_file(stan_1_gp, dir = "Stan/", basename = "model_1_gp.stan")
+```
+
+```{r}
+# To use the model, we first need to compile it
+model_1_gp <- cmdstanr::cmdstan_model(file_1_gp)
+```
+
+We can use the model to draw samples from our surrogate model, using the three function evaluations that we obtained previously as observations: 
+
+```{r}
+#| message: false
+
+# Use the model 
+# 1. Use the function evaluations provided above as input 
+x_grid <- seq(0, 1, length.out = 100)
+sd_global <- sd(observed_evals$y)
+y_scaled <- observed_evals$y / sd_global
+
+stan_dat <- list(N_obs = NROW(observed_evals),
+                 x_obs = observed_evals$x,
+                 y_obs = y_scaled, 
+                 N_pred = length(x_grid), 
+                 x_pred = x_grid)
+
+# 2. Get samples from surrogate model
+gp_1_samples <- model_1_gp$sample(data = stan_dat,
+                                  seed = 424242,
+                                  iter_sampling = 500,
+                                  parallel_chains = 4)
+
+# 3. Extract predictions
+g_draws <- gp_1_samples$draws(variables = "g", format = "draws_matrix")
+N_obs <- NROW(observed_evals)
+N_pred <- length(x_grid)
+g_pred <- t(g_draws[,(N_obs+1):(N_obs + N_pred)])
+# Rescale g_pred 
+g_pred <- g_pred * sd_global
+# Get GP mean and sd 
+gp_mean <- apply(g_pred, 1, mean) 
+gp_sd <- apply(g_pred, 1, sd)
+
+# 5. Visualise 
+plot_gp_1 <- plot_forrester + 
+  geom_point(data = observed_evals, aes(x = x, y = y)) +
+  geom_line(aes(x = x_grid, y = gp_mean), colour = "blue") +
+  geom_line(aes(x = x_grid, y = gp_mean - 2*gp_sd), colour = "blue", linetype= "dashed") +
+  geom_line(aes(x = x_grid, y = gp_mean + 2*gp_sd), colour = "blue", linetype= "dashed")
+
+plot_gp_1
+```
+
+Now it's your turn: 
+
+1. Adjust the above Stan code such that it uses the Matérn 3/2 covariance function instead;
+2. If you have been working in a code cell here, make sure to save the Stan code in a Stan file; 
+3. Compile & use the model to sample from your chosen priors and check the predictions you would obtain.
+
+The Matérn 3/2 covariance function is given by: 
+
+$$k(\mathbf{x}_i, \mathbf{x}_j) = \sigma^2 \left( 1 + \frac{\sqrt{3}|\mathbf{x}_i - \mathbf{x}_j|}{l} \right) \exp \left( -\frac{\sqrt{3}|\mathbf{x}_i - \mathbf{x}_j|}{l} \right)$$
+
+Our model with Matérn covariance function, requires us to choose priors for the parameters magnitude $\sigma$ and lengthscale $l$. Let's assume the following priors for now: 
+
+$$\begin{aligned}
+\mu &\sim \text{N}(0,1)\\
+\eta &\sim \text{N}(0,1) \\
+\sigma &\sim \text{N}^+(0,1)\\
+l &\sim \text{N}^+(0.3, 0.1)
+\end{aligned} $$
+
+```{r}
+# Edit the Stan code wherever you see "..." to use the Matérn 3/2 covariance function 
+stan_2_gp <- "
+data {
+  int<lower=1> N_obs;
+  array[N_obs] real x_obs;
+  vector[N_obs] y_obs;
+  int<lower=1> N_pred;
+  array[N_pred] real x_pred;
+}
+
+transformed data {
+  int<lower=1> N = N_obs + N_pred;
+  array[N] real x;
+  for (n_obs in 1:N_obs)   x[n_obs] = x_obs[n_obs];
+  for (n_pred in 1:N_pred) x[N_obs + n_pred] = x_pred[n_pred];
+}
+
+parameters {
+  real<lower=0> ...;
+  real<lower=0> ...;
+  real mu;
+  vector[N] eta;
+}
+
+transformed parameters{
+  vector[N] g;
+  { 
+    matrix[N, N] L;
+    matrix[N, N] K;
+    K = ...;
+    L = cholesky_decompose(K);
+    g = mu + L * eta;
+  }
+}
+
+model {
+  lengthscale ~ ...;
+  sigma ~ ...;
+  mu ~ std_normal();
+  eta ~ std_normal();
+  y_obs ~ normal(g[1:N_obs], sigma);
+}
+
+generated quantities {
+  vector[N_pred] y_pred;
+  for (n_pred in 1:N_pred){
+    y_pred[n_pred] = normal_rng(g[N_obs + n_pred], sigma);
+  }
+}
+
+"
+```
+
+```{r}
+# Save Stan code in Stan file 
+```
+
+```{r}
+# To use the model, we first need to compile it
+```
+
+```{r}
+# Use the model 
+
+# 1. Use the same "stan_dat" provided above as input 
+
+# 2. Get samples from surrogate model
+
+# 3. Extract predictions to get GP mean and sd 
+
+# 4. Visualise 
+
+```
+
+## 4. Acquisition functions
+
+An acquisition functions $a(x)$ serves as a guide to efficiently decide where to query for function evaluations next. 
+Different considerations about the problem at hand can motivate choosing different acquisition functions, more details on this can be found in the tutorial slides. 
+
+### For example: Lower confidence bound 
+
+$$\text{a}(x) = \mu(x) - \kappa*\sigma(x)$$
+For our obtained samples from the previous section, we choose $\kappa=4$ and can then compute acquistion values to guide our next query: 
+
+```{r}
+kappa = 4 
+acq_values <- gp_mean - kappa * gp_sd 
+
+ggplot(data = data.frame(x = x_grid, y = acq_values), aes(x = x, y = y)) +
+  geom_line() +
+  ylab("acquisition function a(x)") +
+  theme_bw()
+```
+
+## 5. Towards cost- and propensity-aware BO
+
+### 5.1 Varying cost of queries 
+
+We need to choose a **surrogate model** and an **acquisition function** to implement a BO loop. Additionally, there can be a **cost** associated with each query. Instead of assuming that all queries have the same cost, we can build our approach such that it accounts for varying cost of queries. 
+
+Let's assume a periodic cost function $c(x)$:
+
+```{r}
+cost_fun <- function(x){
+    1.5 - sin(16*x)
+ }
+
+ggplot(data = data.frame(x = x_grid, cost = cost_fun(x_grid)), aes(x = x, y = cost)) +
+  geom_line() +
+  ylab("cost function c(x)") +
+  theme_bw()
+```
+
+Moreover, we can add a step to the BO loop where we apply an amount of cost cooling $\alpha$ to our cost function $c(x)$ and then combine this with the chosen acquisition function $a(x)$. Here, $\alpha$ is dependent on the budget, the current cost and the initial cost:  
+
+```{r}
+alpha_fun <- function(budget, current_cost, initial_cost){
+    (budget - current_cost)/(budget - initial_cost)
+  }
+```
+
+The cost-cooled acquisition function is $a_{\text{cool}}(x) = \frac{a(x)}{c(x)^{\alpha}}$.  
+
+### 5.2 Propensity of response 
+
+In some applications, it is important to account for the fact that we might not obtain a response at the point where we decided to query next. For example, if we send out a survey, there will be people that won't respond, and it might be that one group of people is overall less likely to respond than another, for example, based on age or gender. 
+
+We can include this in the BO loop by combining our acquistion function $a(x)$ with a chosen propensity function $r(x)$. Here, we choose the following fluctuating propensity function $r(x)$ that is higher for smaller values of $x$: 
+
+```{r}
+propensity_fun <- function(x){
+    (2.4 + sin(13*x) + sin(44*(x+0.1))  + cos(5*x)) / 6
+}
+
+ggplot(data = data.frame(x = x_grid, y = propensity_fun(x_grid)), aes(x = x, y = y)) +
+  geom_line() +
+  ylab("propensity function r(x)") +
+  theme_bw()
+```
+
+### 5.3 Bringing it together 
+
+We can combine the chosen cost function $c(x)$, cost-cooling using $\alpha$, and the propensity function $r(x)$ to build a cost- and response propensity-aware acquistion function: 
+$$a_{\text{prop,cool}}(x) = a_{\text{cool}}(x) r(x) = \frac{a(x)}{c(x)^{\alpha}} r(x)$$
+
+```{r}
+#' @param points: initial points where we obtain function evaluations
+#' @param funevals: function evaluations at the initial points
+#' @param model: compiled surrogate model implemented in Stan
+#' @param n_steps: termination condition, in current implementation: guess an upper bound given the budget. This could be changed if we use dynamic arrays.
+#' @param cooling_bool: TRUE if we want to account for cost of queries. 
+#' @param prop_bool: TRUE if we want to account for propensity of response. 
+
+bo_cycle_fun <- function(points, funevals, model, n_steps, cooling_bool=TRUE, prop_bool=TRUE){
+    
+    if (n_steps < budget){
+      stop("Termination condition n_steps cannot be smaller than budget.")
+    }
+
+    # Initial points and corresponding function evaluations 
+    df_evaluations <- data.frame(x = points, y = funevals) |> as.matrix()
+    
+    # Initialise cost with current cost
+    initial_cost <- current_cost <- sum(cost_fun(points))
+    
+    # Initialise empty matrices/vectors for results
+    mean_samples <- matrix(nrow = n_steps, ncol = length(x_grid))
+    sd_samples <- matrix(nrow = n_steps, ncol = length(x_grid))
+    acquisitions <- matrix(nrow = n_steps, ncol = length(x_grid))
+    x_no_response <- c()
+
+    i <- 1
+    query <- 1 
+    
+    while (current_cost <= budget){
+      
+     if (query==1){
+       
+       sd_global <- sd(df_evaluations[,2])
+       y_scaled <-  df_evaluations[,2] / sd_global
+       
+       stan_dat <- list(N_obs = nrow(df_evaluations), 
+                        x_obs = df_evaluations[,1],
+                        y_obs = y_scaled,
+                        N_pred = length(x_grid), 
+                        x_pred = x_grid) 
+       
+       niter <- 2000
+       
+       m <- model$sample(data = stan_dat, 
+                         iter_sampling = niter/2,
+                         iter_warmup = niter/2, 
+                         parallel_chains = 4, 
+                         max_treedepth = 11, 
+                         adapt_engaged = TRUE, 
+                         adapt_delta = 0.95)
+       
+       # Extract draws 
+       g <- m$draws(variables = "g", format = "draws_matrix") 
+       # Extract predictions 
+       N_obs <- length(points)
+       N_pred <- length(x_grid) 
+       g_pred <- t(g[,(N_obs+1):(N_obs + N_pred)])
+       # Rescale g_pred 
+       g_pred <- g_pred * sd_global
+       # Extract GP mean & sd 
+       gp_mean <- apply(g_pred, 1, mean)
+       gp_sd <- apply(g_pred, 1, sd)
+
+       # Update points and corresponding function evaluations
+       points <- df_evaluations[,1]
+       y <- df_evaluations[,2]
+       
+       # Evaluate lower confidence bound acquisition function 
+       acq_values <- gp_lower(gp_mean, gp_sd, kappa = 4)
+       k <- length(points)
+       acq_values_old <- acq_values
+       
+       # Compute cost-cooling with alpha function 
+       if (cooling_bool){
+         cooling <- alpha_fun(budget, current_cost, initial_cost)  
+       } else {
+         cooling <- 1
+       }
+       
+       # Evaluate propensity of response 
+       if (prop_bool){
+         p <- propensity_fun(x_grid)
+       } else {
+         p <- 1
+       }
+       
+       # Adjust acquisition values 
+       acq_values <-  acq_values * p / cost_fun(x_grid)^cooling
+     
+     } else {
+       acq_values[which.min(acq_values)] <- max(acq_values)
+    }
+      
+      # Find the next x based on minimum of acquisition function
+      x_next <- x_grid[which.min(acq_values)] 
+      # Check whether we obtain a response at the chosen x 
+      query <- rbinom(1, 1, propensity_fun(x_next))
+      
+      if (query==1){
+        y_next <- true_f(x_next)
+        df_evaluations <- rbind(df_evaluations, c(x_next, y_next))
+      } else {
+        x_no_response <- c(x_no_response, x_next)
+      }
+      
+      # What is the current minimum? 
+      x_min <- df_evaluations[which.min(df_evaluations[,2]), 1]
+      
+      # Fill one row in each of the matrices with the results for the current BO cycle  
+      mean_samples[i, ] <- gp_mean 
+      sd_samples[i, ] <- gp_sd 
+      acquisitions[i,] <- acq_values
+      
+      # Update the cost 
+      current_cost <- current_cost + cost_fun(x_next)
+      
+      # Next i 
+      i <- i+1
+    }
+    
+    # Select rows where we obtained results
+    mean_samples <- mean_samples[1:(i-1),]
+    sd_samples <- sd_samples[1:(i-1),]
+    acquisitions <- acquisitions[1:(i-1),]
+    
+    return(list(
+      mean_samples=mean_samples, 
+      sd_samples=sd_samples, 
+      acquisitions=acquisitions, 
+      df_evaluations=df_evaluations, 
+      x_no_response=x_no_response))
+}
+```
