@@ -140,7 +140,7 @@ The function $f$ to be optimised is referred to as the **objective function**.
 
 In contrast to *local optimisation*, global optimisation requires that 
 $$f(x^*) \leq f(x)$$ 
-for **all** $x \in \mathcal{X}$ rather than only in some neighbourhood about $x^*$. 
+for **all** $x \in \mathcal{X}$ rather than only in some neighbourhood around $x^*$. 
 
 Throughout this workshop, we assume that the search space $\mathcal{X}$ is a subset of $\mathbb{R}^d$ where $d \in \mathbb{N}$:
 $$\mathcal{X} \subset  \mathbb{R}^d$$
