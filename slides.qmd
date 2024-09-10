@@ -54,8 +54,7 @@ format:
 
 ::: {.column width="48%"}
 
-<!--![](images/bo_demo.png){width=100%}-->
-(a nice BO image here)
+![BO demo](images/fig1iia.pdf){width=100%}
 
 :::
 
@@ -103,11 +102,16 @@ After this session, you will be able to
 -->
 
 ```{r}
+#| label: ice-breaker
+#| output-location: column-fragment
+#| fig-width: 5 # Adjust to 80% of the full slide width
+#| fig-height: 3 # Optional, adjust height if needed
+
 library(ggplot2)
 observed_evals <- data.frame(x = c(0.2, 0.25, 0.8), y = c(0, -0.2, 5))
 
 ggplot(data = observed_evals, aes(x = x, y = y)) +
-    geom_point() + 
+    geom_point(size = 4) +  # Increase point size
     ylab("f(x)") +
     ylim(-5, 5) +
     theme_bw()
@@ -123,9 +127,11 @@ $$
 x^* = \text{arg min}_{x \in \mathcal{X}} f(x).
 $$
 
+![a global property](images/globe-logo.png){width=10%}
+
 ## Problem definition: global optimisation
 
-Today we focus on finding a minimum, but finding a maximum can be approached in the same way since 
+Today we focus on finding a **minimum**, but finding a **maximum** can be approached in the same way since 
 $$\text{max}_{x \in \mathcal{X}} f(x) = - \text{min}_{x \in \mathcal{X}}f(x).$$
 
 ## Problem definition: global optimisation
@@ -134,7 +140,9 @@ The function $f$ to be optimised is referred to as the **objective function**.
 
 In contrast to *local optimisation*, global optimisation requires that 
 $$f(x^*) \leq f(x)$$ 
-for **all** $x \in \mathcal{X}$ rather than only in some neighbourhood about $x^*$. Throughout this workshop, we assume that the search space $\mathcal{X}$ is a subset of $\mathbb{R}^d$ where $d \in \mathbb{N}$:
+for **all** $x \in \mathcal{X}$ rather than only in some neighbourhood about $x^*$. 
+
+Throughout this workshop, we assume that the search space $\mathcal{X}$ is a subset of $\mathbb{R}^d$ where $d \in \mathbb{N}$:
 $$\mathcal{X} \subset  \mathbb{R}^d$$
 
 ## Group discussion
