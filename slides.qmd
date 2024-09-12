@@ -78,7 +78,7 @@ After this session, you will be able to
 
 - formulate the main goal and components of BO,
 - implement Gaussian process surrogates,
-- use several acquisution functions within BO.
+- use several acquisition functions within BO.
 
 ## Schedule for today's tutorial
 
@@ -87,10 +87,10 @@ After this session, you will be able to
 | 5 min  | Warmup                                   |
 | 10 min | What does Bayesian optimisation solve?   |
 | 15 min | Building blocks of Bayesian optimisation |
-| 20 min | GPs as Surrogates                        |
+| 20 min | GPs as surrogates                        |
 | 10 min | Acquisition functions                    |
 | 10 min | Break                                    |
-| 5 min  | Computational tricks                     |
+| 5 min  | Some useful techniques                   |
 | 10 min | Cost- and propensity-aware BO            |
 | 30 min | BO Hands-on                              |
 | 5 min  | Outro                                    |
@@ -127,7 +127,7 @@ $$
 x^* = \text{arg min}_{x \in \mathcal{X}} f(x).
 $$
 
-![a global property](images/globe-logo.png){width=10%}
+<!--![a global property](images/globe-logo.png){width=10%} -->
 
 ## Problem definition: global optimisation
 
@@ -143,7 +143,7 @@ $$f(x^*) \leq f(x)$$
 for **all** $x \in \mathcal{X}$ rather than only in some neighbourhood around $x^*$. 
 
 Throughout this workshop, we assume that the search space $\mathcal{X}$ is a subset of $\mathbb{R}^d$ where $d \in \mathbb{N}$:
-$$\mathcal{X} \subset  \mathbb{R}^d$$
+$$\mathcal{X} \subset  \mathbb{R}^d.$$
 
 ## Group discussion
 
@@ -185,6 +185,28 @@ $$y = f(x) + \epsilon$$.
 ## Problem definition: global optimisation
 
 - Perhaps, the global optimisation problem can be solved using sampling!
+
+## Sample designs
+
+Consider the function
+
+$$
+y = (4 − 2.1x_1^2 + 0.3x_1^2)x_1^2 + (x_1 + 0.6)x_2 + (−4 + 4x_2^2)x_2^2
+$$ 
+
+on the square $x_1 ∈ [−1, 1]$, $x_2 ∈ [−1, 1]$. 
+
+Let's sample 25 points using each of grid-search (circles), random-search (triangles) and latin-hypercube (squares) sampling. 
+
+
+## Sample designs
+\vspace{-1.0cm}
+![](images/fig1i){width=30%, fig-align="center"} 
+
+Minimum found by each method shown in grey. 
+
+True global minimum is -1.470 at (0.094, −0.747).
+
 
 ## Sample designs
 
@@ -254,14 +276,14 @@ This is exactly how Bayesian optimisation works.
 
 # Buildling blocks of Bayesian optimisation
 
-## What is bayesian optimisation?
+## What is Bayesian optimisation?
 
 So, what is Bayesian optimisation exactly?
 
-## What is bayesian optimisation?
+## What is Bayesian optimisation?
 
 ::: {.incremental}
-- **Bayesian optimisation** (BO) ([@kushner1964new, @mockus-1978]) is a statistical / machine learning technique for addressing the global optimisation task by treating the objective function $f(.)$ as a *random variable*.
+- **Bayesian optimisation** (BO) ([@kushner1964new, @mockus-1978]) is a statistical / machine learning technique for addressing the global optimisation task by treating the objective function $f(.)$ as a *stochastic process*, i.e. random function.
 
 - It enables the optimisation of "black-box" functions. 
 
@@ -289,7 +311,7 @@ A perfect case for Bayesian inference and Stan to do it for us!
 ::: {.incremental}
 - We can build an explicit probabilistic model of $f$, known as a **surrogate** (or **emulator**) $g_\theta(x)$.
 - The emulator provides a *predictive distribution* for $f$ evaluated at new inputs. 
-- When data $(x_i,y_i), i=1, ..., t$ is observed then the model can be sequentially updated and refined using the Bayes' rule.
+- When data $\{ x_i, y_i \}, i=1, ..., t$ are observed then the model can be sequentially updated and refined using the Bayes' rule.
 ::: 
 
 ## BO components: surrogates
@@ -306,13 +328,13 @@ Requirements to the surrogate:
 
 - It should behave similarly to the objective function $f$, 
 
-- It should be cheaper to evaluate at a point $x$ than the target function $f(x)$, and allow to quantify uncertainty of how well $g_\theta(x)$ approximates $f(x)$
+- It should be cheaper to evaluate at a point $x$ than the target function $f(x)$, and allow to quantify uncertainty of how well $g_\theta(x)$ approximates $f(x).$
 
 ## BO components: surrogates
 
-Based on noisy observations
+Based on noisy observations $(x_i, y_i)$ from the model
 $$y_i = f(x_i) + \epsilon_i$$ 
-and collected are observation pairs $(x_i, y_i)$ we fit the surrogate to the data
+we fit the surrogate to the data
 
 $$g_\theta(x_i) \approx y_i.$$
 
@@ -323,13 +345,13 @@ We have obtained a predictive distribution using $g_\theta(x)$. Now what?
 
 ## Acquisition functions
 
-At every iteration, an **acquisition function** $a(x)$ is used to decide which point $x_{t+1}$ to query next as $x_{t+1}$ is chosen as the optimum of $a(x)$:
+At every iteration, an **acquisition function** $a(x)$ is used to decide which point $x_{t+1}$ to query next:
 
-$$x_{t+1}= \text{arg min}_{x \in \mathcal{X}} a(x)$$.
+$$x_{t+1}= \text{arg max}_{x \in \mathcal{X}} a(x).$$
 
 ## BO components: summary
 
-In summary, BO is a sequential *model-based* optimisation algorithm which learns from all available observations to make better informed choices about the next point to query, and uses a probabilistic surrogate model representing the objective function for it.
+In summary, BO is a sequential *model-based* optimisation algorithm which learns from all available observations to make better informed choices about the next point to query based on an *acquisition function*, and uses a *probabilistic surrogate model* representing the objective function for it.
 
 
 ## The BO loop 
@@ -341,7 +363,7 @@ In summary, BO is a sequential *model-based* optimisation algorithm which learns
 - *Iterative Loop*:
   - update the **surrogate model** by fitting $g_\theta(x_i) \approx y_i, i=0,...,t$.
   - evaluate **acquisition function** $a(x)$
-  - select the next point as the optimnum of the acquisition function to  $x_{t+1}= \text{arg min}_{x \in \mathcal{X}} a(x)$.
+  - select the next point as the optimum of the acquisition function to  $x_{t+1}= \text{arg min}_{x \in \mathcal{X}} a(x)$.
   - evaluate the objective function: $y_{t+1} = f(x_{t+1}) + \epsilon_i$
   - Stopping Criterion: check if the stopping criterion is met (e.g., maximum number of iterations reached, convergence achieved, or budget exhausted).
 - *Termination*: Return the best observed point or the point that minimises the surrogate model's prediction of the objective function.
@@ -350,15 +372,16 @@ In summary, BO is a sequential *model-based* optimisation algorithm which learns
 
 ## Bayesian optimisation use cases
 
-- Machine learning
-- Drug development
-- Chemical discovery
-- Climate models
-- Robotic control
+- Machine learning [@snoek2012practical]
+- Drug development [@colliandre2023bayesian]
+- Material discovery [@chitturi2024targeted]
+- Climate models [@roy2024automated]
+- Robotic control [@martinez2017bayesian]
+- Survey design: our own interest!
 
 ## Connection to active learning
 
-- Active learning, on the other hand, focuses on selecting the most informative data points in order to learn the whole function.
+- Active learning focuses on selecting the most informative data points in order to learn the whole function.
 
 - Put simply, BO is active learning for global optimisation.
 
@@ -372,7 +395,7 @@ Some suggestions for recharging during breaks :)
 - drink some water 
 - try to avoid checking e-mails, messengers, or social media
 
-# Gaussian Processes as surrogates
+# Gaussian Processes
 
 ## Choice of a surrogate
 
@@ -388,7 +411,7 @@ There exist some variety of surrogate models:
 
 ## Choice of a surrogate
 
-However, for *continuous functions*, the most canonical choice is Gaussian processes (GPs).
+However, for *continuous functions*, Gaussian processes (GPs) are the most canonical choice.
 
 ## GPs: multivariate Gaussian distribution
 
@@ -401,7 +424,7 @@ $$
 This is denoted by 
 $$x \sim \mathcal{N}(m, \Sigma).$$
 
-## Multivariate Gaussian distribution: two attarctive properties
+## Multivariate Gaussian distribution: two attractive properties
 
 Consider the partitioning of $x$ into $[x_1, x_2]$ where $x_1 \in \mathbb{R}^p$ and $x_2 \in \mathbb{R}^q$ with $p + q = d$, so that 
 $$
@@ -431,6 +454,14 @@ $$
 ## Gaussian process definition
     
 A *Gaussian process* is defined to be a collection of random variables, any finite number of which have a joint Gaussian distribution [@rasmussen_gaussian_2005]. The random variables $f(x)$ are indexed by the elements $x$ of some set $\mathcal{X}$. 
+
+## Two important properties of Multivariate Gaussian distributions
+
+If $v_1$ and $v_2$ are two random vectors distributed according to the Multivariate Gaussian distribution, then
+
+1. the joint distribution of $(v_1, v_2)^T$ is also a Multivariate Gaussian,
+
+2. conditional distributions of $v_1 | v_2$ and $v_2 | v_1$ are Multivariate Gaussians.
     
 ## Gaussian process definition
 
@@ -443,13 +474,13 @@ $$
 $$
 This is commonly written as:
 $$
-  f(\mathbf{x}) \sim \mathcal{GP}(\mu(\mathbf{x}), k(\mathbf{x}, \mathbf{x'}))
+  f(x) \sim \mathcal{GP}(\mu(x), k(x, x'))
 $$    
 
 
 ## Gaussian process definition
 
-GPs can be used as *priors* and posteriors *over functions*. This makes them a natural tool for sequential Bayesian learning.
+GPs can be used as *priors over functions*. This makes them a natural tool for sequential Bayesian learning.
 
 
 ## Kernel functions
@@ -492,14 +523,18 @@ $$
 
 ## Kernels and function properties
 
+![](images/fig2i.pdf){height=100, width=100, fig-align="center"} 
+
+## Kernels and function properties
+
 Let $r = \|x - x'\|$. Some covariance kernels and the types of functions they can model:
   
 | Name | Definition | Type of functions |
-|----------|----------|----------|
+|------|------------|----------------|
 |   Squared Exponential|   $\alpha \exp\left(-\frac{r^2}{2\ell^2}\right)$ |   Infinitely differentiable functions |
-|   Mat\'ern 1/2|   $\alpha \exp\left(-\frac{r}{\ell} \right)$ |   Continuous but not differentiable |
-|   Mat\'ern 3/2|   $\alpha \left( 1 + \frac{\sqrt{3}r}{\ell} \right) \exp\left(-\frac{\sqrt{3}r}{\ell} \right)$ |  1 time differentiable functions |
-|   Mat\'ern 5/2|   $\alpha \left( 1 + \frac{\sqrt{5}r}{\ell} + \frac{5r^2}{3\ell^2} \right) \exp\left(-\frac{\sqrt{5}r}{\ell} \right)$ |   2 time differentiable functions |
+|   Matérn 1/2|   $\alpha \exp\left(-\frac{r}{\ell} \right)$ |   Continuous but not differentiable |
+|   Matérn 3/2|   $\alpha \left( 1 + \frac{\sqrt{3}r}{\ell} \right) \exp\left(-\frac{\sqrt{3}r}{\ell} \right)$ |  1 time differentiable functions |
+|   Matérn 5/2|   $\alpha \left( 1 + \frac{\sqrt{5}r}{\ell} + \frac{5r^2}{3\ell^2} \right) \exp\left(-\frac{\sqrt{5}r}{\ell} \right)$ |   2 time differentiable functions |
 |   Linear Kernel|   $\sigma_b^2 + \sigma_v^2 (x - c)(x' - c)$ |   Linear functions |
 |   Periodic Kernel|  $\alpha \exp\left( -\frac{2\sin^2(\pi r / p)}{\ell^2} \right)$ |   Periodic functions |
   
@@ -570,9 +605,9 @@ $$
 
 - Acquisition functions provide a heuristic measure of the utility of prospective query points. 
 
-- At stage $t$ to determine the next point to query $x_{t}$, the chosen acquisition function $a$ is maximized over the design space
+- At stage $t+1$ to determine the next point to query $x_{t+1}$, the chosen acquisition function $a$ is maximized over the design space
 $$ 
-x_t = \text{argmax}_{ x \in \mathcal{X}} a(x).
+x_{t+1} = \text{argmax}_{ x \in \mathcal{X}} a(x).
 $$
 
 ## Acquisition functions: probability of improvement (POI)
@@ -613,11 +648,11 @@ Here
 
 - $\kappa$ is a user-defined parameter allowing to balance exploration and exploitation.
 
-# Computational tricks
+# Some useful techniques
 
-## Tricks for GPs
+## Computational tricks for GPs
 
-GPs scale cubically leading to poor scalability. There is a expanding range of techniques available to bypass this problem. For instance, 
+GPs scale cubically (due to matrix inversion) leading to poor scalability. There is an expanding range of techniques available to bypass this problem. For instance, 
 
 - on a multivariate grid, the Kronecker product trick [@saatcci2012scalable],
 
@@ -625,7 +660,7 @@ GPs scale cubically leading to poor scalability. There is a expanding range of t
 
 - approximations using variational techniques.
 
-## Thompson samping 
+## Thompson sampling 
 
 Thompson sampling [@thompson1933likelihood] selects the next evaluation point by using *one sample* from the posterior distribution of the objective function.
 
