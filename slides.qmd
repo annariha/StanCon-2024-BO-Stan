@@ -186,27 +186,6 @@ $$y = f(x) + \epsilon$$.
 
 - Perhaps, the global optimisation problem can be solved using sampling!
 
-## Sample designs
-
-Consider the function
-
-$$
-y = (4 − 2.1x_1^2 + 0.3x_1^2)x_1^2 + (x_1 + 0.6)x_2 + (−4 + 4x_2^2)x_2^2
-$$ 
-
-on the square $x_1 ∈ [−1, 1]$, $x_2 ∈ [−1, 1]$. 
-
-Let's sample 25 points using each of grid-search (circles), random-search (triangles) and latin-hypercube (squares) sampling. 
-
-
-## Sample designs
-\vspace{-1.0cm}
-![](images/fig1i){width=30%, fig-align="center"} 
-
-Minimum found by each method shown in grey. 
-
-True global minimum is -1.470 at (0.094, −0.747).
-
 
 ## Sample designs
 
@@ -246,7 +225,32 @@ The two relatively naive strategies:
 
 *Latin-hypercube*:
 
-a grid with exactly one sample in each column and each row. This avoids the problem of collapsing, from which grid-search suffers. 
+- **How**: a grid with exactly one sample in each column and each row. This avoids the problem of collapsing, from which grid-search suffers. 
+
+## Sample designs
+
+Consider the function
+
+$$
+y = (4 − 2.1x_1^2 + 0.3x_1^2)x_1^2 + (x_1 + 0.6)x_2 + (−4 + 4x_2^2)x_2^2
+$$ 
+
+on the square $x_1, x_2 \in  [−1, 1] \times [−1, 1]$. 
+
+Let's sample 25 points using each of 
+
+- grid-search (circles), 
+
+- random-search (triangles),
+
+- latin-hypercube (squares) 
+
+sampling. 
+
+
+## Sample designs
+\vspace{-0.5cm}
+![](images/fig1i){width=50, fig-align="center"} 
 
 ## Sample designs: static designs
 
@@ -297,7 +301,7 @@ We need a model for the objectve "black-box" function. Where to get it?
 ## BO components: surrogates
 
 ::: {.incremental}
-- Since $f$ is black-box, there is uncertainty about it its values:
+- Since $f$ is black-box, there is uncertainty about its values:
   - where it has not been directly evaluated,
   - when $f$ is noisy, then even at evaluated points as well. 
 ::: 
@@ -332,7 +336,7 @@ Requirements to the surrogate:
 
 ## BO components: surrogates
 
-Based on noisy observations $(x_i, y_i)$ from the model
+Based on noisy observations $\{x_i, y_i\}$ from the model
 $$y_i = f(x_i) + \epsilon_i$$ 
 we fit the surrogate to the data
 
@@ -359,7 +363,7 @@ In summary, BO is a sequential *model-based* optimisation algorithm which learns
 ::: {#bo-loop .callout-note icon=false}
 ### The Bayesian optimisation procedure
 
-- *Initialization*: select initial points $(x_0, y_0)$ to evaluate the objective function
+- *Initialization*: select initial points $\{x_0, y_0\}$ to evaluate the objective function
 - *Iterative Loop*:
   - update the **surrogate model** by fitting $g_\theta(x_i) \approx y_i, i=0,...,t$.
   - evaluate **acquisition function** $a(x)$
@@ -455,13 +459,6 @@ $$
     
 A *Gaussian process* is defined to be a collection of random variables, any finite number of which have a joint Gaussian distribution [@rasmussen_gaussian_2005]. The random variables $f(x)$ are indexed by the elements $x$ of some set $\mathcal{X}$. 
 
-## Two important properties of Multivariate Gaussian distributions
-
-If $v_1$ and $v_2$ are two random vectors distributed according to the Multivariate Gaussian distribution, then
-
-1. the joint distribution of $(v_1, v_2)^T$ is also a Multivariate Gaussian,
-
-2. conditional distributions of $v_1 | v_2$ and $v_2 | v_1$ are Multivariate Gaussians.
     
 ## Gaussian process definition
 
@@ -522,7 +519,7 @@ k_\mathrm{M5/2}(x, x') = \left(1 + \frac{\sqrt{5}\lvert x - x' \rvert}{l} + \fra
 $$
 
 ## Kernels and function properties
-
+\vspace{-0.2cm}
 ![](images/fig2i.pdf){height=100, width=100, fig-align="center"} 
 
 ## Kernels and function properties
@@ -656,7 +653,9 @@ GPs scale cubically (due to matrix inversion) leading to poor scalability. There
 
 - on a multivariate grid, the Kronecker product trick [@saatcci2012scalable],
 
-- Hilbert Space Gaussian Process (HSGP) approximations [@solin2020hilbert, @riutort2023practical],
+- Hilbert Space Gaussian Process (HSGP) approximations ([@solin2020hilbert, @riutort2023practical]),
+
+- random Fourier features [@rahimi2007random]
 
 - approximations using variational techniques.
 
