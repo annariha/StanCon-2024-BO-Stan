@@ -37,13 +37,13 @@ In this tutorial, we use the [cmdstanr](https://mc-stan.org/cmdstanr/articles/cm
 Using the `cmdstanr` package, we first check the C++ toolchain: 
 
 ```{r}
-check_cmdstan_toolchain()
+cmdstanr::check_cmdstan_toolchain()
 ```
 
 If this returns `The C++ toolchain required for CmdStan is setup properly!`, then CmdStan can be installed as follows:
 
 ```{r}
-install_cmdstan(cores = 2)
+cmdstanr::install_cmdstan(cores = 2)
 ```
 
 More detailed installation instructions for CmdStan can be found in the [CmdStan documentation](https://mc-stan.org/docs/cmdstan-guide/installation.html) and the [Getting started with CmdStanR](https://mc-stan.org/cmdstanr/articles/cmdstanr.html) vignette. 
@@ -174,7 +174,7 @@ generated quantities {
 "
 ```
 
-Note that this one implementation to get started, and there are other (more efficient) ways to set up and reparameterise GPs in Stan, see the comments by Andrew Johnson and Aki Vehtari in [Stan discourse](https://discourse.mc-stan.org/t/help-reparameterize-gp-model-to-remove-divergent-transitions/26425/4?u=andrjohns), Aki's case study on GPs [here](https://avehtari.github.io/casestudies/Motorcycle/motorcycle_gpcourse.html), and the computational tricks mentioned in the tutorial slides. 
+Note that this is an initial implementation to get started, and there are other (more efficient) ways to set up and reparameterise GPs in Stan, see the comments by Andrew Johnson and Aki Vehtari in [Stan discourse](https://discourse.mc-stan.org/t/help-reparameterize-gp-model-to-remove-divergent-transitions/26425/4?u=andrjohns), Aki's case study on GPs [here](https://avehtari.github.io/casestudies/Motorcycle/motorcycle_gpcourse.html), and the computational tricks mentioned in the tutorial slides. 
 
 ```{r}
 # Save Stan code in Stan file 
